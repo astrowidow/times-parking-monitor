@@ -1,6 +1,6 @@
 #!/bin/zsh
 # launchd に3つ登録する（何度実行してもよい。フォルダを移したら再実行）。
-#   collect … 5分おきに collect.py を動かし、data/log.csv に追記する
+#   collect … 5分おきに collect.py で data/log.csv に追記し、report.py で report.html を作り直す
 #   awake   … 終了日まで Mac をスリープさせない（ディスプレイは消えてよい）
 #   cleanup … 1時間おきに確かめ、終了日を過ぎたら cleanup.sh で片付ける
 #
@@ -50,7 +50,7 @@ fi
 
 mkdir -p "$AGENTS" "$DIR/data"
 write_plist collect \
-  "    <string>/usr/bin/python3</string><string>$DIR/collect.py</string>" \
+  "    <string>/bin/zsh</string><string>-c</string><string>/usr/bin/python3 '$DIR/collect.py'; /usr/bin/python3 '$DIR/report.py'</string>" \
   "  <key>StartInterval</key><integer>300</integer>"
 write_plist awake \
   "    <string>/bin/zsh</string><string>$DIR/keep_awake.sh</string>" \

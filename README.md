@@ -16,9 +16,9 @@ Mac で5分おきに記録して、曜日 × 時間帯ごとの空きやすさ�
 
 ```bash
 ./install.sh                 # 始める（フォルダを移したら再実行）
-python3 report.py            # 集計（1時間ごと）
+open report.html             # まとめを見る（5分おきに自動で作り直される）
+python3 report.py            # 端末で見る（1時間ごと）
 python3 report.py --bin 30   # 30分ごと
-open report.html
 ./install.sh stop            # すべて止める（記録は残る）
 ```
 
