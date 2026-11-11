@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>駐車場の空き統計</title>
+<style>
+:root {
+  --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --border:rgba(11,11,11,.10); --accent:#2a78d6;
+  --s0:#cde2fb; --s1:#86b6ef; --s2:#3987e5; --s3:#1c5cab; --s4:#0d366b; --nodata:#f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page:#0d0d0d; --surface:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --border:rgba(255,255,255,.10); --accent:#3987e5;
+    --s0:#0d366b; --s1:#1c5cab; --s2:#3987e5; --s3:#86b6ef; --s4:#cde2fb; --nodata:#232322;
+  }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--page); color:var(--ink);
+  font:14px/1.6 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+main { max-width:1080px; margin:0 auto; padding:24px 16px 48px; }
+h1 { font-size:20px; margin:0 0 4px; }
+h2 { font-size:15px; margin:0 0 12px; }
+.sub { color:var(--ink2); margin:0 0 20px; font-size:13px; }
+.tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:16px; }
+.tile, .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+.tile .k { color:var(--ink2); font-size:12px; }
+.tile .v { font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; }
+.tile .n { color:var(--muted); font-size:12px; }
+.card { margin-bottom:16px; }
+.seg { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:14px; }
+.seg button { font:inherit; font-size:13px; border:0; background:transparent; color:var(--ink2); padding:6px 12px; cursor:pointer; }
+.seg button[aria-pressed="true"] { background:var(--accent); color:#fff; }
+.scroll { overflow-x:auto; }
+.hm { display:grid; gap:2px; min-width:560px; }
+.hm .lab { color:var(--ink2); font-size:12px; display:flex; align-items:center; }
+.hm .col { color:var(--muted); font-size:11px; white-space:nowrap; overflow:visible; height:16px; }
+.hm .cell { height:26px; border-radius:3px; cursor:default; }
+.few { background-image:repeating-linear-gradient(45deg, transparent 0 4px, var(--surface) 4px 6px); }
+.none { background:transparent; border:1px dashed var(--muted); }
+.hm .cell:hover { outline:2px solid var(--ink); outline-offset:1px; }
+.legend { display:flex; flex-wrap:wrap; gap:14px; margin-top:12px; color:var(--ink2); font-size:12px; align-items:center; }
+.legend i { display:inline-block; width:14px; height:14px; border-radius:3px; vertical-align:-3px; margin-right:5px; }
+.rank { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; }
+.rank ol { margin:0; padding:0; list-style:none; }
+.rank li { display:grid; grid-template-columns:96px 1fr 44px; gap:8px; align-items:center; padding:4px 0; font-variant-numeric:tabular-nums; }
+.rank .bar { height:8px; border-radius:0 4px 4px 0; background:var(--s2); }
+.rank .pct { text-align:right; }
+.rank .n { color:var(--muted); font-size:12px; grid-column:2 / 4; margin-top:-4px; }
+.note { color:var(--muted); font-size:12px; }
+details summary { cursor:pointer; color:var(--ink2); }
+table { border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; margin-top:10px; }
+th, td { padding:3px 6px; border-bottom:1px solid var(--grid); text-align:right; white-space:nowrap; }
+th { color:var(--ink2); font-weight:500; }
+#tip { position:fixed; pointer-events:none; background:var(--surface); color:var(--ink); border:1px solid var(--border);
+  border-radius:8px; padding:8px 10px; font-size:12px; box-shadow:0 4px 16px rgba(0,0,0,.15); display:none; z-index:9; line-height:1.5; }
+#tip b { font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>タイムズ港区立麻布十番公共駐車場 空き統計</h1>
+  <p class="sub" id="sub"></p>
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card">
+    <h2>曜日 × 時間帯</h2>
+    <div class="seg" role="group" aria-label="指標">
+      <button data-m="stop" aria-pressed="true">とめられる率（空車＋混雑）</button>
+      <button data-m="vaca" aria-pressed="false">空車率</button>
+    </div>
+    <div class="scroll"><div class="hm" id="hm"></div></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="card">
+    <h2 id="rankTitle">空きやすい時間帯 ベスト5</h2>
+    <div class="rank" id="rank"></div>
+    <p class="note">観測が3日未満の時間帯は順位から外しています。</p>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>数値の表を見る</summary>
+      <div class="scroll" id="tbl"></div>
+    </details>
+  </section>
+  <p class="note">時刻はサイトが満空を判定した時刻（ページの「◯◯現在」）。混雑＝残りわずかでも入れる状態。<span id="gen"></span></p>
+</main>
+<div id="tip"></div>
+<script>
+const D = /*__DATA__*/null;
+const STEPS = ["--s0", "--s1", "--s2", "--s3", "--s4"];
+const MIN_DAYS = 3;
+let metric = "stop";
+
+const n = c => c ? c.vaca + c.crow + c.full : 0;
+const val = (c, m) => n(c) ? (m === "stop" ? (c.vaca + c.crow) : c.vaca) / n(c) : null;
+const pct = v => v == null ? "–" : Math.round(v * 100) + "%";
+const step = v => STEPS[Math.min(4, Math.floor(v * 5))];
+const binEnd = b => D.bins[(b + 1) % D.nbins].replace("00:00", "24:00");
+const mName = m => m === "stop" ? "とめられる率" : "空車率";
+
+function header() {
+  const t = D.total, all = n(t);
+  document.getElementById("sub").textContent =
+    `${D.first} 〜 ${D.last}（${D.days}日・${D.obs}回分）／ 最終取得 ${D.last_fetch}` +
+    (D.errors ? ` ／ 取得失敗 ${D.errors}回` : "");
+  document.getElementById("gen").textContent = ` 集計 ${D.generated}`;
+  const best = g => {
+    const r = ranked(g, "stop")[0];
+    const hh = s => s.endsWith(":00") ? +s.slice(0, 2) + "時" : s;
+    return r ? [`${hh(D.bins[r.b])}〜${hh(binEnd(r.b))}`, `とめられる率 ${pct(r.v)}`] : ["–", `観測${MIN_DAYS}日以上でそろいます`];
+  };
+  const tiles = [
+    ["とめられる率（全体）", pct((t.vaca + t.crow) / all), `空車 ${pct(t.vaca / all)}・混雑 ${pct(t.crow / all)}・満車 ${pct(t.full / all)}`],
+    ["平日でいちばん空く", ...best("平日")],
+    ["土日祝でいちばん空く", ...best("土日祝")],
+    ["観測", `${D.days}日`, `${D.obs}回（${D.binmin}分区間で集計）`],
+  ];
+  document.getElementById("tiles").innerHTML = tiles.map(([k, v, s]) =>
+    `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="n">${s}</div></div>`).join("");
+}
+
+function heatmap() {
+  const hm = document.getElementById("hm");
+  hm.style.gridTemplateColumns = `28px repeat(${D.nbins}, minmax(16px, 1fr))`;
+  const every = Math.max(1, Math.round(3 * 60 / D.binmin));
+  let h = `<div></div>` + D.bins.map((s, b) =>
+    `<div class="col">${b % every === 0 ? s.replace(/^0/, "").replace(":00", "時") : ""}</div>`).join("");
+  for (const r of D.rows) {
+    h += `<div class="lab">${r}</div>`;
+    for (let b = 0; b < D.nbins; b++) {
+      const c = D.cells[`${r}|${b}`], v = val(c, metric);
+      const cls = v == null ? "cell none" : "cell" + (c.days < MIN_DAYS ? " few" : "");
+      const bg = v == null ? "" : `style="background-color:var(${step(v)})"`;
+      h += `<div class="${cls}" ${bg} data-r="${r}" data-b="${b}"></div>`;
+    }
+  }
+  hm.innerHTML = h;
+  const labs = ["0〜20%", "20〜40%", "40〜60%", "60〜80%", "80〜100%"];
+  document.getElementById("legend").innerHTML =
+    `<span>${mName(metric)}:</span>` +
+    STEPS.map((s, i) => `<span><i style="background:var(${s})"></i>${labs[i]}</span>`).join("") +
+    `<span><i class="none"></i>記録なし</span>` +
+    `<span><i class="few" style="background-color:var(--s2)"></i>観測${MIN_DAYS}日未満（参考値）</span>`;
+}
+
+function ranked(g, m) {
+  const out = [];
+  for (let b = 0; b < D.nbins; b++) {
+    const c = D.groups[`${g}|${b}`];
+    if (c && c.days >= MIN_DAYS) out.push({ b, v: val(c, m), c });
+  }
+  return out.sort((x, y) => y.v - x.v);
+}
+
+function ranking() {
+  document.getElementById("rankTitle").textContent = `空きやすい時間帯 ベスト5（${mName(metric)}）`;
+  document.getElementById("rank").innerHTML = ["平日", "土日祝"].map(g => {
+    const rs = ranked(g, metric).slice(0, 5);
+    const li = rs.length ? rs.map(r =>
+      `<li><span>${D.bins[r.b]}〜${binEnd(r.b)}</span><span class="bar" style="width:${Math.max(2, r.v * 100)}%"></span>` +
+      `<span class="pct">${pct(r.v)}</span><span class="n">空車 ${pct(r.c.vaca / n(r.c))}・混雑 ${pct(r.c.crow / n(r.c))}・${r.c.days}日分</span></li>`).join("")
+      : `<li><span class="note" style="grid-column:1/4">まだ観測が足りません</span></li>`;
+    return `<div><h2>${g}</h2><ol>${li}</ol></div>`;
+  }).join("");
+}
+
+function table() {
+  let h = `<table><tr><th></th>${D.bins.map(s => `<th>${s}</th>`).join("")}</tr>`;
+  for (const r of D.rows) {
+    h += `<tr><th>${r}</th>` + D.bins.map((_, b) => `<td>${pct(val(D.cells[`${r}|${b}`], metric))}</td>`).join("") + `</tr>`;
+  }
+  document.getElementById("tbl").innerHTML = h + `</table>`;
+}
+
+const tip = document.getElementById("tip");
+document.getElementById("hm").addEventListener("pointermove", e => {
+  const el = e.target.closest(".cell");
+  if (!el) { tip.style.display = "none"; return; }
+  const b = +el.dataset.b, r = el.dataset.r, c = D.cells[`${r}|${b}`];
+  tip.innerHTML = `<b>${r} ${D.bins[b]}〜${binEnd(b)}</b><br>` + (n(c)
+    ? `とめられる率 ${pct(val(c, "stop"))}<br>空車 ${pct(c.vaca / n(c))}・混雑 ${pct(c.crow / n(c))}・満車 ${pct(c.full / n(c))}<br><span style="color:var(--muted)">${n(c)}回・${c.days}日分</span>`
+    : "記録なし");
+  tip.style.display = "block";
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8);
+  const y = e.clientY + 14 + tip.offsetHeight > innerHeight ? e.clientY - tip.offsetHeight - 10 : e.clientY + 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+});
+document.getElementById("hm").addEventListener("pointerleave", () => tip.style.display = "none");
+
+document.querySelectorAll(".seg button").forEach(btn => btn.addEventListener("click", () => {
+  metric = btn.dataset.m;
+  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === btn));
+  heatmap(); ranking(); table();
+}));
+
+header(); heatmap(); ranking(); table();
+</script>
+</body>
+</html>
