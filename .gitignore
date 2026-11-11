@@ -1,7 +1,5 @@
 report.html
 __pycache__/
 .DS_Store
-data/cleanup.log
-
-# 全体の gitignore で *.csv が外されているので、記録だけは入れる
-!data/log.csv
+# 記録は手元にだけ置く
+data/
